@@ -1,4 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// ── Persist helper: reads localStorage on init, writes on every change ──
+function usePersist(key, defaultValue) {
+  const [state, setStateRaw] = useState(() => {
+    try {
+      const stored = localStorage.getItem(key);
+      return stored !== null ? JSON.parse(stored) : defaultValue;
+    } catch { return defaultValue; }
+  });
+  const setState = (val) => {
+    setStateRaw(prev => {
+      const next = typeof val === "function" ? val(prev) : val;
+      try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+  return [state, setState];
+}
 
 const POSITIONS = ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "Bench"];
 const POSITION_COLORS = {
@@ -63,8 +81,21 @@ function newGame(date = "") {
 }
 
 export default function App() {
-  const [players, setPlayers] = useState(INITIAL_PLAYERS);
-  const [innings, setInnings] = useState(Array.from({ length: TOTAL_INNINGS }, createEmptyInning));
+  // ── Persisted state — survives refresh ──────────────────────────
+  const [players, setPlayers] = usePersist("cardinals_players", INITIAL_PLAYERS);
+  const [innings, setInnings] = usePersist("cardinals_innings", Array.from({ length: TOTAL_INNINGS }, createEmptyInning));
+  const [scoreGrid, setScoreGrid] = usePersist("cardinals_scoreGrid",
+    Array.from({ length: 11 }, () => Array.from({ length: TOTAL_INNINGS }, createScoreCell))
+  );
+  const [teamRuns, setTeamRuns] = usePersist("cardinals_teamRuns", Array(TOTAL_INNINGS).fill(0));
+  const [oppRuns, setOppRuns] = usePersist("cardinals_oppRuns", Array(TOTAL_INNINGS).fill(0));
+  const [oppName, setOppName] = usePersist("cardinals_oppName", "Opponent");
+  const [pitchLog, setPitchLog] = usePersist("cardinals_pitchLog", Array.from({ length: TOTAL_INNINGS }, () => []));
+  const [games, setGames] = usePersist("cardinals_games", []);
+  // Game history: array of saved scorebook snapshots
+  const [gameHistory, setGameHistory] = usePersist("cardinals_gameHistory", []);
+
+  // ── Non-persisted UI state ───────────────────────────────────────
   const [view, setView] = useState("lineup");
   const [currentInning, setCurrentInning] = useState(0);
   const [fieldInning, setFieldInning] = useState(0);
@@ -73,30 +104,51 @@ export default function App() {
   const [assignModal, setAssignModal] = useState(null);
   const [toast, setToast] = useState(null);
   const [hoveredPos, setHoveredPos] = useState(null);
-
-  // Scorebook
-  const [scoreGrid, setScoreGrid] = useState(
-    () => Array.from({ length: 11 }, () => Array.from({ length: TOTAL_INNINGS }, createScoreCell))
-  );
-  const [teamRuns, setTeamRuns] = useState(Array(TOTAL_INNINGS).fill(0));
-  const [oppRuns, setOppRuns] = useState(Array(TOTAL_INNINGS).fill(0));
-  const [oppName, setOppName] = useState("Opponent");
   const [editingOpp, setEditingOpp] = useState(false);
-  const [pitchLog, setPitchLog] = useState(Array.from({ length: TOTAL_INNINGS }, () => []));
   const [scoreInning, setScoreInning] = useState(0);
   const [outcomeModal, setOutcomeModal] = useState(null);
-
-  // Calendar / Schedule
-  const [games, setGames] = useState([]);
   const [calMonth, setCalMonth] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
   });
-  const [gameModal, setGameModal] = useState(null); // null | { mode: "add"|"edit", game, date }
-  const [scheduleTab, setScheduleTab] = useState("calendar"); // "calendar" | "list" | "record"
-  const [editingGame, setEditingGame] = useState(null); // game being edited in form
+  const [gameModal, setGameModal] = useState(null);
+  const [scheduleTab, setScheduleTab] = useState("calendar");
+  const [editingGame, setEditingGame] = useState(null);
+  const [showNewGameConfirm, setShowNewGameConfirm] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2200); };
+
+  // ── Save current game to history & reset scorebook ──────────────
+  const saveCurrentGameToHistory = () => {
+    const snapshot = {
+      id: Date.now(),
+      savedAt: new Date().toISOString(),
+      opponent: oppName,
+      teamRuns: [...teamRuns],
+      oppRuns: [...oppRuns],
+      scoreGrid: scoreGrid.map(row => row.map(c => ({ ...c }))),
+      pitchLog: pitchLog.map(arr => [...arr]),
+      innings: innings.map(inn => ({ ...inn })),
+      players: [...players],
+    };
+    setGameHistory(prev => [snapshot, ...prev]);
+    return snapshot;
+  };
+
+  const startNewGame = () => {
+    // Save current scorebook to history first
+    saveCurrentGameToHistory();
+    // Reset scorebook but KEEP roster and lineup (carry over)
+    setScoreGrid(Array.from({ length: 11 }, () => Array.from({ length: TOTAL_INNINGS }, createScoreCell)));
+    setTeamRuns(Array(TOTAL_INNINGS).fill(0));
+    setOppRuns(Array(TOTAL_INNINGS).fill(0));
+    setOppName("Opponent");
+    setPitchLog(Array.from({ length: TOTAL_INNINGS }, () => []));
+    setScoreInning(0);
+    setShowNewGameConfirm(false);
+    showToast("New game started! Roster & lineup carried over ✅");
+  };
 
   // ── Lineup helpers ──────────────────────────────────────────────
   const assignPlayer = (inningIdx, pos, player) => {
@@ -653,7 +705,84 @@ export default function App() {
             : <span style={sb.teamName} onClick={() => setEditingOpp(true)}>{oppName} ✏️</span>
           }
         </div>
+        {/* New Game / History buttons */}
+        <div style={sb.bookActions}>
+          <button style={sb.historyBtn} onClick={() => setShowHistoryModal(true)}>
+            📚 History ({gameHistory.length})
+          </button>
+          <button style={sb.newGameBtn} onClick={() => setShowNewGameConfirm(true)}>
+            ⚾ New Game
+          </button>
+        </div>
       </div>
+
+      {/* Confirm New Game */}
+      {showNewGameConfirm && (
+        <div style={styles.modalOverlay} onClick={() => setShowNewGameConfirm(false)}>
+          <div style={{ ...styles.modal, background: "#1a1a1a" }} onClick={e => e.stopPropagation()}>
+            <div style={{ ...styles.modalTitle, fontSize: 16 }}>Start New Game?</div>
+            <div style={{ padding: "12px 20px 0", color: "#aaa", fontSize: 14, lineHeight: 1.6 }}>
+              This will save the current scorebook to history and reset the score sheet.{"\n\n"}
+              <span style={{ color: "#4CAF50" }}>✅ Your roster and lineup will carry over.</span>
+            </div>
+            <div style={{ padding: "16px 20px 0", display: "flex", gap: 8 }}>
+              <button style={{ flex: 1, padding: 13, background: "#b71c1c", border: "none", borderRadius: 10, color: "#fff", fontSize: 14, fontWeight: "bold", cursor: "pointer", fontFamily: "'Georgia', serif" }}
+                onClick={startNewGame}>Yes, Start New Game</button>
+            </div>
+            <button style={{ ...styles.modalClose, margin: "8px 20px 0" }} onClick={() => setShowNewGameConfirm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Game History Modal */}
+      {showHistoryModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowHistoryModal(false)}>
+          <div style={{ ...styles.modal, background: "#1a1a1a", maxHeight: "85vh" }} onClick={e => e.stopPropagation()}>
+            <div style={{ ...styles.modalTitle, fontSize: 16 }}>📚 Game History</div>
+            <div style={{ flex: 1, overflowY: "auto" }}>
+              {gameHistory.length === 0 && (
+                <div style={{ padding: "24px 20px", color: "#555", textAlign: "center", fontStyle: "italic" }}>No saved games yet</div>
+              )}
+              {gameHistory.map((snap, i) => {
+                const rf = snap.teamRuns.reduce((a,b) => a+b, 0);
+                const ra = snap.oppRuns.reduce((a,b) => a+b, 0);
+                const result = rf > ra ? "W" : rf < ra ? "L" : "T";
+                const resultColor = result === "W" ? "#4CAF50" : result === "L" ? "#e53935" : "#fb8c00";
+                const date = new Date(snap.savedAt);
+                const totalPitches = snap.pitchLog.flat().length;
+                return (
+                  <div key={snap.id} style={{ padding: "14px 20px", borderBottom: "1px solid #222" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: "bold", color: "#eee", fontFamily: "'Georgia', serif" }}>
+                          vs {snap.opponent}
+                        </div>
+                        <div style={{ fontSize: 11, color: "#555", marginTop: 2 }}>
+                          {date.toLocaleDateString()} · {totalPitches} pitches
+                        </div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 22, fontWeight: "bold", color: resultColor, fontFamily: "'Georgia', serif" }}>{result}</div>
+                        <div style={{ fontSize: 13, color: "#aaa", fontFamily: "'Georgia', serif" }}>{rf} – {ra}</div>
+                      </div>
+                    </div>
+                    {/* Mini inning breakdown */}
+                    <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                      {snap.teamRuns.map((r, ii) => (
+                        <div key={ii} style={{ flex: 1, textAlign: "center", background: "#252525", borderRadius: 5, padding: "3px 2px" }}>
+                          <div style={{ fontSize: 8, color: "#555" }}>I{ii+1}</div>
+                          <div style={{ fontSize: 12, fontWeight: "bold", color: r > 0 ? "#4CAF50" : "#444", fontFamily: "'Georgia', serif" }}>{r}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button style={{ ...styles.modalClose, margin: "8px 20px 0" }} onClick={() => setShowHistoryModal(false)}>Close</button>
+          </div>
+        </div>
+      )}
       <div style={sb.scoreboard}>
         <div style={sb.scoreboardInner}>
           <div style={sb.scoreboardRow}>
@@ -1180,6 +1309,9 @@ const cal = {
 const sb = {
   page: { background: "#faf6ee", minHeight: "100vh", paddingBottom: 40 },
   bookHeader: { background: "linear-gradient(135deg, #8b1a1a 0%, #5a0e0e 100%)", padding: "16px 16px 14px", textAlign: "center", borderBottom: "3px double #c8a060" },
+  bookActions: { display: "flex", gap: 8, marginTop: 10, justifyContent: "center" },
+  newGameBtn: { background: "rgba(255,255,255,0.15)", border: "1px solid rgba(255,255,255,0.3)", borderRadius: 20, color: "#f5e6c8", padding: "6px 14px", fontSize: 11, cursor: "pointer", fontFamily: "'Georgia', serif", fontWeight: "bold" },
+  historyBtn: { background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 20, color: "rgba(245,230,200,0.7)", padding: "6px 14px", fontSize: 11, cursor: "pointer", fontFamily: "'Georgia', serif" },
   bookTitle: { fontFamily: "'Georgia', serif", fontSize: 13, letterSpacing: 4, color: "#f5e6c8", textTransform: "uppercase", fontWeight: "bold" },
   bookSubtitle: { fontSize: 11, color: "rgba(245,230,200,0.7)", letterSpacing: 2, marginTop: 2 },
   vsRow: { display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 8 },
