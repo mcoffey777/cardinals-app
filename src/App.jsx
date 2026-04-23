@@ -507,13 +507,25 @@ export default function App() {
   const gamesOnDay = d=>games.filter(g=>g.date===dateStr(d));
   const eventsOnDay = d=>calEvents.filter(e=>e.date===dateStr(d));
 
-  // ── Loading screen ────────────────────────────────────────────────
+  // ── Loading / Splash screen ───────────────────────────────────────
   if(loading) return (
-    <div style={{...S.root,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh"}}>
-      <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/St._Louis_Cardinals_logo.svg/200px-St._Louis_Cardinals_logo.svg.png"
-        alt="Cardinals" style={{width:80,height:80,objectFit:"contain",marginBottom:24,opacity:0.8}}/>
-      <div style={{fontSize:16,color:"#e53935",fontFamily:"'Georgia',serif",letterSpacing:2}}>LOADING...</div>
-      <div style={{fontSize:11,color:"#444",marginTop:8}}>Connecting to cloud...</div>
+    <div style={{background:"#0f0f0f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Georgia',serif"}}>
+      {/* Splash logo */}
+      <div style={{position:"relative",marginBottom:32}}>
+        {/* Outer glow ring */}
+        <div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"radial-gradient(circle,rgba(183,28,28,0.35) 0%,transparent 70%)"}}/>
+        <img src="/cardinalslogo.webp" alt="Cardinals"
+          style={{width:200,height:200,objectFit:"contain",position:"relative",zIndex:1,
+            filter:"drop-shadow(0 8px 24px rgba(183,28,28,0.6))"}}/>
+      </div>
+      <div style={{fontSize:28,fontWeight:"bold",color:"#fff",letterSpacing:3,marginBottom:6}}>CARDINALS</div>
+      <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",letterSpacing:4,marginBottom:32}}>9U LINEUP MANAGER</div>
+      {/* Loading bar */}
+      <div style={{width:140,height:3,background:"#1e1e1e",borderRadius:2,overflow:"hidden"}}>
+        <div style={{height:"100%",background:"linear-gradient(90deg,#b71c1c,#e53935)",borderRadius:2,animation:"loadbar 1.4s ease-in-out infinite"}}/>
+      </div>
+      <div style={{fontSize:11,color:"#333",marginTop:14,letterSpacing:1}}>CONNECTING TO CLOUD...</div>
+      <style>{`@keyframes loadbar{0%{width:0%;margin-left:0}50%{width:80%;margin-left:10%}100%{width:0%;margin-left:100%}}`}</style>
     </div>
   );
 
@@ -560,7 +572,7 @@ export default function App() {
 
         {/* Game sub-tabs */}
         <div style={S.gameSubNav}>
-          {[["lineup","⚾ Lineup"],["field","🏟 Field"],["score","📓 Score"]].map(([id,label])=>(
+          {[["lineup","⚾ Lineup"],["field","🏟 Field"],["score","📓 Score"],["print","🖨️ Print"]].map(([id,label])=>(
             <button key={id} style={{...S.gameSubBtn,...(gameTab===id?S.gameSubBtnActive:{})}} onClick={()=>setGameTab(id)}>{label}</button>
           ))}
           <button style={S.gameEditBtn} onClick={()=>requireCoach(()=>setEditGameModal({...g}))}>✏️</button>
@@ -843,6 +855,115 @@ export default function App() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── PRINT TAB ── */}
+        {gameTab==="print"&&(
+          <div style={S.content}>
+            {/* Print button — only shows on screen, hides on paper */}
+            <div style={S.printActionBar}>
+              <div style={S.printHint}>Tap Print to send this lineup card to your printer or save as PDF.</div>
+              <button style={S.printBtn} onClick={()=>window.print()}>🖨️ Print / Save PDF</button>
+            </div>
+
+            {/* ── PRINTABLE AREA ── */}
+            <div id="printable" style={S.printPage}>
+              {/* Header */}
+              <div style={S.printHeader}>
+                <div style={S.printHeaderLeft}>
+                  <div style={S.printTeamName}>ST. LOUIS CARDINALS</div>
+                  <div style={S.printSubtitle}>9U · Official Lineup Card</div>
+                </div>
+                <div style={S.printHeaderRight}>
+                  <div style={S.printGameInfo}><strong>vs.</strong> {g.opponent||"———————"}</div>
+                  <div style={S.printGameInfo}><strong>Date:</strong> {g.date ? new Date(g.date+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}) : "———————"}</div>
+                  <div style={S.printGameInfo}><strong>Time:</strong> {g.time||"———"} &nbsp;&nbsp; <strong>Location:</strong> {g.location||"———————"}</div>
+                  {g.result&&<div style={S.printGameInfo}><strong>Result:</strong> {g.result} {g.runsFor&&g.runsAgainst?`(${g.runsFor}–${g.runsAgainst})`:""}</div>}
+                </div>
+              </div>
+
+              {/* Main lineup grid */}
+              <table style={S.printTable}>
+                <thead>
+                  <tr>
+                    <th style={{...S.printTh,...S.printThPlayer}}>#</th>
+                    <th style={{...S.printTh,...S.printThPlayer}}>PLAYER</th>
+                    {Array.from({length:INNINGS},(_,i)=>(
+                      <th key={i} style={S.printTh}>INN {i+1}</th>
+                    ))}
+                    <th style={S.printTh}>NOTES</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {players.map((player,pi)=>(
+                    <tr key={pi} style={pi%2===0?S.printTrEven:S.printTrOdd}>
+                      <td style={S.printTdNum}>{pi+1}</td>
+                      <td style={S.printTdName}>{player}</td>
+                      {Array.from({length:INNINGS},(_,ii)=>{
+                        const pos = Object.entries(g.lineup[ii]||{}).find(([,p])=>p===player)?.[0]||null;
+                        return (
+                          <td key={ii} style={{...S.printTdPos,...(pos?{background:POS_COLORS[pos]+"22",fontWeight:"bold",color:"#1a1a1a"}:{})}}>
+                            {pos||"—"}
+                          </td>
+                        );
+                      })}
+                      <td style={S.printTdNotes}>&nbsp;</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              {/* Inning-by-inning breakdown */}
+              <div style={S.printSectionTitle}>FIELD ASSIGNMENTS BY INNING</div>
+              <div style={S.printInningGrid}>
+                {Array.from({length:INNINGS},(_,i)=>(
+                  <div key={i} style={S.printInningBox}>
+                    <div style={S.printInningHeader}>INNING {i+1}</div>
+                    {fieldPositions.map(pos=>{
+                      const player = g.lineup[i]?.[pos]||null;
+                      return (
+                        <div key={pos} style={S.printPosRow}>
+                          <span style={{...S.printPosBadge,background:POS_COLORS[pos]}}>{pos}</span>
+                          <span style={S.printPosPlayer}>{player||<span style={{color:"#bbb"}}>—</span>}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* Score box */}
+              <div style={S.printScoreSection}>
+                <div style={S.printSectionTitle}>SCORE BY INNING</div>
+                <table style={S.printScoreTable}>
+                  <thead>
+                    <tr>
+                      <th style={S.printScoreTh}>TEAM</th>
+                      {Array.from({length:INNINGS},(_,i)=><th key={i} style={S.printScoreTh}>{i+1}</th>)}
+                      <th style={{...S.printScoreTh,borderLeft:"2px solid #333"}}>R</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={S.printScoreTd}>Cardinals</td>
+                      {g.teamRuns.map((r,i)=><td key={i} style={S.printScoreTd}>{r||""}</td>)}
+                      <td style={{...S.printScoreTd,fontWeight:"bold",borderLeft:"2px solid #333"}}>{g.teamRuns.reduce((a,b)=>a+b,0)||""}</td>
+                    </tr>
+                    <tr>
+                      <td style={S.printScoreTd}>{g.opponent||"Opponent"}</td>
+                      {g.oppRuns.map((r,i)=><td key={i} style={S.printScoreTd}>{r||""}</td>)}
+                      <td style={{...S.printScoreTd,fontWeight:"bold",borderLeft:"2px solid #333"}}>{g.oppRuns.reduce((a,b)=>a+b,0)||""}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div style={S.printFooter}>
+                Cardinals 9U · Printed {new Date().toLocaleDateString()} · cardinals-app.vercel.app
+              </div>
+            </div>
           </div>
         )}
 
@@ -1475,6 +1596,38 @@ const S = {
   toggle:{padding:"7px 12px",background:"#222",border:"1px solid #2a2a2a",borderRadius:20,color:"#777",fontSize:12,cursor:"pointer",fontFamily:"'Georgia',serif"},
   toggleActive:{background:"#2a2a2a",color:"#fff",border:"1px solid #444"},
   toast:{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",background:"rgba(229,57,53,0.92)",color:"#fff",padding:"8px 20px",borderRadius:20,fontSize:13,backdropFilter:"blur(8px)",zIndex:200,boxShadow:"0 4px 20px rgba(0,0,0,0.5)",whiteSpace:"nowrap"},
+  // Print tab
+  printActionBar:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 16px 12px",borderBottom:"1px solid #1a1a1a"},
+  printHint:{fontSize:12,color:"#555",flex:1,marginRight:12},
+  printBtn:{background:"#b71c1c",border:"none",borderRadius:20,color:"#fff",padding:"10px 20px",fontSize:13,fontWeight:"bold",cursor:"pointer",fontFamily:"'Georgia',serif",flexShrink:0},
+  printPage:{background:"#fff",margin:"0 12px 24px",borderRadius:12,padding:"20px",boxShadow:"0 2px 16px rgba(0,0,0,0.3)",fontFamily:"'Georgia',serif"},
+  printHeader:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",borderBottom:"3px solid #b71c1c",paddingBottom:10,marginBottom:14},
+  printHeaderLeft:{flex:1},
+  printHeaderRight:{flex:1,textAlign:"right"},
+  printTeamName:{fontSize:16,fontWeight:"bold",color:"#b71c1c",letterSpacing:2},
+  printSubtitle:{fontSize:10,color:"#888",letterSpacing:1,marginTop:2},
+  printGameInfo:{fontSize:10,color:"#333",marginTop:3},
+  printTable:{width:"100%",borderCollapse:"collapse",marginBottom:16,fontSize:10},
+  printTh:{background:"#b71c1c",color:"#fff",padding:"5px 6px",textAlign:"center",fontSize:9,letterSpacing:0.5,border:"1px solid #8a1010"},
+  printThPlayer:{textAlign:"left",minWidth:80},
+  printTrEven:{background:"#fff"},
+  printTrOdd:{background:"#fdf8f0"},
+  printTdNum:{padding:"5px 6px",textAlign:"center",border:"1px solid #e0d5c0",color:"#888",fontSize:10,width:20},
+  printTdName:{padding:"5px 8px",border:"1px solid #e0d5c0",fontWeight:"bold",color:"#1a1a1a",fontSize:11,minWidth:80},
+  printTdPos:{padding:"5px 6px",textAlign:"center",border:"1px solid #e0d5c0",fontSize:10,color:"#333",minWidth:34},
+  printTdNotes:{padding:"5px 8px",border:"1px solid #e0d5c0",minWidth:60},
+  printSectionTitle:{fontSize:9,letterSpacing:2,textTransform:"uppercase",color:"#b71c1c",marginBottom:8,borderBottom:"1px solid #e0d5c0",paddingBottom:4},
+  printInningGrid:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginBottom:16},
+  printInningBox:{border:"1px solid #e0d5c0",borderRadius:6,overflow:"hidden"},
+  printInningHeader:{background:"#b71c1c",color:"#fff",padding:"4px 8px",fontSize:9,fontWeight:"bold",letterSpacing:1},
+  printPosRow:{display:"flex",alignItems:"center",gap:6,padding:"3px 8px",borderBottom:"1px solid #f0e8e0"},
+  printPosBadge:{display:"inline-flex",alignItems:"center",justifyContent:"center",width:24,height:16,borderRadius:3,fontSize:8,fontWeight:"bold",color:"#fff",flexShrink:0},
+  printPosPlayer:{fontSize:9,color:"#1a1a1a",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},
+  printScoreSection:{marginBottom:12},
+  printScoreTable:{width:"100%",borderCollapse:"collapse",fontSize:10},
+  printScoreTh:{background:"#333",color:"#fff",padding:"4px 8px",textAlign:"center",border:"1px solid #555",fontSize:9},
+  printScoreTd:{padding:"5px 8px",textAlign:"center",border:"1px solid #e0d5c0",minWidth:28,fontSize:11},
+  printFooter:{textAlign:"center",fontSize:8,color:"#bbb",marginTop:12,paddingTop:8,borderTop:"1px solid #e0d5c0"},
 };
 
 const css=`
@@ -1483,4 +1636,11 @@ const css=`
   ::-webkit-scrollbar{display:none;}
   button:active{opacity:0.75;transform:scale(0.97);}
   input[type="date"],input[type="time"]{color-scheme:dark;}
+  @media print {
+    body { background: #fff !important; }
+    #root > div { max-width: 100% !important; background: #fff !important; }
+    .no-print, [style*="position:fixed"] { display: none !important; }
+    #printable { margin: 0 !important; box-shadow: none !important; border-radius: 0 !important; padding: 12px !important; }
+    @page { margin: 0.5in; size: landscape; }
+  }
 `;
