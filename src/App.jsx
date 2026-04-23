@@ -507,25 +507,12 @@ export default function App() {
   const gamesOnDay = d=>games.filter(g=>g.date===dateStr(d));
   const eventsOnDay = d=>calEvents.filter(e=>e.date===dateStr(d));
 
-  // ── Loading / Splash screen ───────────────────────────────────────
+  // ── Loading screen ─────────────────────────────────────────────────
   if(loading) return (
     <div style={{background:"#0f0f0f",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",fontFamily:"'Georgia',serif"}}>
-      {/* Splash logo */}
-      <div style={{position:"relative",marginBottom:32}}>
-        {/* Outer glow ring */}
-        <div style={{position:"absolute",inset:-16,borderRadius:"50%",background:"radial-gradient(circle,rgba(183,28,28,0.35) 0%,transparent 70%)"}}/>
-        <img src="/cardinalslogo.webp" alt="Cardinals"
-          style={{width:200,height:200,objectFit:"contain",position:"relative",zIndex:1,
-            filter:"drop-shadow(0 8px 24px rgba(183,28,28,0.6))"}}/>
-      </div>
-      <div style={{fontSize:28,fontWeight:"bold",color:"#fff",letterSpacing:3,marginBottom:6}}>CARDINALS</div>
-      <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",letterSpacing:4,marginBottom:32}}>9U LINEUP MANAGER</div>
-      {/* Loading bar */}
-      <div style={{width:140,height:3,background:"#1e1e1e",borderRadius:2,overflow:"hidden"}}>
-        <div style={{height:"100%",background:"linear-gradient(90deg,#b71c1c,#e53935)",borderRadius:2,animation:"loadbar 1.4s ease-in-out infinite"}}/>
-      </div>
-      <div style={{fontSize:11,color:"#333",marginTop:14,letterSpacing:1}}>CONNECTING TO CLOUD...</div>
-      <style>{`@keyframes loadbar{0%{width:0%;margin-left:0}50%{width:80%;margin-left:10%}100%{width:0%;margin-left:100%}}`}</style>
+      <div style={{width:48,height:48,border:"3px solid #1e1e1e",borderTop:"3px solid #e53935",borderRadius:"50%",animation:"spin 0.8s linear infinite",marginBottom:20}}/>
+      <div style={{fontSize:12,color:"#333",letterSpacing:2}}>LOADING...</div>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 
@@ -1050,14 +1037,16 @@ export default function App() {
       <style>{css}</style>
 
       <div style={S.header}>
-        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/St._Louis_Cardinals_logo.svg/200px-St._Louis_Cardinals_logo.svg.png"
-          alt="Cardinals" style={S.headerLogo} onError={e=>{e.target.style.display="none";}}/>
-        <div>
-          <div style={S.headerTitle}>Cardinals</div>
-          <div style={S.headerSub}>9U · {totalW}W – {totalL}L{totalT>0?` – ${totalT}T`:""}</div>
+        {/* Cardinals logo replaces the text title */}
+        <img src="/cardinalslogo.webp" alt="Cardinals"
+          style={S.headerLogo}
+          onError={e=>{e.target.style.display="none";}}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={S.headerSub}>9U LINEUP MANAGER</div>
+          <div style={S.headerRecord}>{totalW}W – {totalL}L{totalT>0?` – ${totalT}T`:""}</div>
         </div>
         <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4}}>
-          <div style={{...S.syncDot,width:8,height:8,borderRadius:"50%",background:syncStatus==="live"?"#4CAF50":syncStatus==="offline"?"#e53935":"#fb8c00",alignSelf:"flex-end"}}/>
+          <div style={{width:8,height:8,borderRadius:"50%",background:syncStatus==="live"?"#4CAF50":syncStatus==="offline"?"#e53935":"#fb8c00"}}/>
           {isCoach
             ? <button style={{...S.coachBadge,fontSize:10}} onClick={lockCoach}>🔓 Coach</button>
             : <button style={{...S.viewBadge,fontSize:10}} onClick={()=>setShowPasswordModal(true)}>🔒 Login</button>
@@ -1424,10 +1413,11 @@ const sb = {
 // ── APP STYLES ────────────────────────────────────────────────────────
 const S = {
   root:{background:"#0f0f0f",minHeight:"100vh",maxWidth:430,margin:"0 auto",fontFamily:"'Georgia',serif",color:"#f0f0f0",position:"relative",paddingBottom:32},
-  header:{background:"linear-gradient(135deg,#b71c1c 0%,#7f0000 100%)",padding:"18px 16px 14px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 4px 20px rgba(183,28,28,0.5)"},
-  headerLogo:{width:50,height:50,objectFit:"contain",flexShrink:0,filter:"drop-shadow(0 2px 6px rgba(0,0,0,0.5))"},
+  header:{background:"linear-gradient(135deg,#b71c1c 0%,#7f0000 100%)",padding:"14px 16px",display:"flex",alignItems:"center",gap:12,boxShadow:"0 4px 20px rgba(183,28,28,0.5)"},
+  headerLogo:{width:64,height:64,objectFit:"contain",flexShrink:0,filter:"drop-shadow(0 2px 8px rgba(0,0,0,0.6))"},
   headerTitle:{fontSize:24,fontWeight:"bold",letterSpacing:1,color:"#fff"},
-  headerSub:{fontSize:11,color:"rgba(255,255,255,0.65)",letterSpacing:1},
+  headerSub:{fontSize:11,color:"rgba(255,255,255,0.55)",letterSpacing:2,textTransform:"uppercase"},
+  headerRecord:{fontSize:15,fontWeight:"bold",color:"rgba(255,255,255,0.9)",letterSpacing:1,marginTop:2},
   // Sync bar
   syncBar:{display:"flex",alignItems:"center",gap:8,padding:"6px 14px",background:"#111",borderBottom:"1px solid #1e1e1e"},
   syncDot:{width:7,height:7,borderRadius:"50%",flexShrink:0},
